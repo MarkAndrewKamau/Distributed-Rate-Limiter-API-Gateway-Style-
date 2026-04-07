@@ -1,13 +1,15 @@
 {
   "name": "distributed-rate-limiter",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Redis-backed token bucket API gateway",
+  "main": "src/index.js",
   "directories": {
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest --runInBand"
   },
   "keywords": [],
   "author": "",
