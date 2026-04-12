@@ -41,6 +41,7 @@ services:
       RATE_LIMIT_CAPACITY: 10
       RATE_LIMIT_REFILL_RATE_PER_SECOND: 5
       RATE_LIMIT_REQUEST_COST: 1
+      RATE_LIMIT_POLICY_CACHE_TTL_MS: 5000
       RATE_LIMIT_FAIL_OPEN: "true"
     depends_on:
       redis:
