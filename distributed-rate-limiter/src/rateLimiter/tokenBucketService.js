@@ -18,6 +18,8 @@ if tokens == nil then
   tokens = capacity
 end
 
+tokens = math.min(tokens, capacity)
+
 if last_refill_ms == nil then
   last_refill_ms = now_ms
 end
@@ -113,29 +115,55 @@ class TokenBucketService {
     return `${this.keyPrefix}:${key}`;
   }
 
-  async consume({ key, cost = this.defaultRequestCost }) {
+  async consume({
+    key,
+    capacity = this.capacity,
+    refillRatePerSecond = this.refillRatePerSecond,
+    cost = this.defaultRequestCost,
+    ttlBufferMs = this.ttlBufferMs,
+  }) {
     if (!key) {
       throw new Error("A bucket key is required.");
     }
 
+    const normalizedCapacity = Number(capacity);
+    const normalizedRefillRatePerSecond = Number(refillRatePerSecond);
     const normalizedCost = Number(cost);
+    const normalizedTtlBufferMs = Number(ttlBufferMs);
+
+    if (!Number.isFinite(normalizedCapacity) || normalizedCapacity <= 0) {
+      throw new Error(`Bucket capacity must be a positive number. Received "${capacity}".`);
+    }
+
+    if (
+      !Number.isFinite(normalizedRefillRatePerSecond) ||
+      normalizedRefillRatePerSecond <= 0
+    ) {
+      throw new Error(
+        `Refill rate must be a positive number. Received "${refillRatePerSecond}".`
+      );
+    }
 
     if (!Number.isFinite(normalizedCost) || normalizedCost <= 0) {
       throw new Error(`Request cost must be a positive number. Received "${cost}".`);
     }
 
+    if (!Number.isFinite(normalizedTtlBufferMs) || normalizedTtlBufferMs <= 0) {
+      throw new Error(`TTL buffer must be a positive number. Received "${ttlBufferMs}".`);
+    }
+
     const response = await this.redis[TOKEN_BUCKET_COMMAND](
       this.buildKey(key),
-      String(this.capacity),
-      String(this.refillRatePerSecond),
+      String(normalizedCapacity),
+      String(normalizedRefillRatePerSecond),
       String(normalizedCost),
-      String(this.ttlBufferMs)
+      String(normalizedTtlBufferMs)
     );
 
     const [
       allowed,
       remaining,
-      capacity,
+      returnedCapacity,
       retryAfterMs,
       resetAfterMs,
       nowMs,
@@ -145,7 +173,7 @@ class TokenBucketService {
     return {
       allowed: parseNumericField(allowed) === 1,
       remaining: parseNumericField(remaining),
-      capacity: parseNumericField(capacity),
+      capacity: parseNumericField(returnedCapacity),
       retryAfterMs: parseNumericField(retryAfterMs),
       resetAfterMs: parseNumericField(resetAfterMs),
       nowMs: parseNumericField(nowMs),
