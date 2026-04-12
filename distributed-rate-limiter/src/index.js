@@ -3,6 +3,7 @@ require("dotenv").config();
 const { createApp } = require("./app");
 const { config } = require("./config");
 const { createRedisClient } = require("./lib/redis");
+const { RateLimitPolicyService } = require("./rateLimiter/rateLimitPolicyService");
 const { TokenBucketService } = require("./rateLimiter/tokenBucketService");
 
 async function start() {
@@ -17,10 +18,21 @@ async function start() {
     defaultRequestCost: config.rateLimit.requestCost,
     ttlBufferMs: config.rateLimit.ttlBufferMs,
   });
+  const policyService = new RateLimitPolicyService({
+    redis,
+    cacheTtlMs: config.rateLimit.policyCacheTtlMs,
+    defaultPolicy: {
+      capacity: config.rateLimit.capacity,
+      refillRatePerSecond: config.rateLimit.refillRatePerSecond,
+      requestCost: config.rateLimit.requestCost,
+    },
+    keyPrefix: config.rateLimit.policyKeyPrefix,
+  });
 
   const app = createApp({
     config,
     bucketService,
+    policyService,
   });
 
   const server = app.listen(config.port, () => {
