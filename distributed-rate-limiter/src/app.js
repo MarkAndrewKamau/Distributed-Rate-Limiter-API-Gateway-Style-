@@ -1,6 +1,9 @@
 const express = require("express");
 
 const {
+  createAdminAuthMiddleware,
+} = require("./middleware/createAdminAuthMiddleware");
+const {
   createTokenBucketRateLimiter,
 } = require("./middleware/createTokenBucketRateLimiter");
 const {
@@ -59,6 +62,11 @@ function createApp({ config, bucketService, policyService }) {
   }
 
   const app = express();
+  const adminRouter = express.Router();
+  const adminAuthMiddleware = createAdminAuthMiddleware({
+    apiKeys: config.admin.apiKeys,
+    realm: config.admin.realm,
+  });
   const rateLimitMiddleware = createTokenBucketRateLimiter({
     bucketService,
     failOpen: config.rateLimit.failOpen,
@@ -122,7 +130,9 @@ function createApp({ config, bucketService, policyService }) {
     });
   });
 
-  app.get("/admin/policies", async (req, res, next) => {
+  adminRouter.use(adminAuthMiddleware);
+
+  adminRouter.get("/policies", async (req, res, next) => {
     try {
       const policies = await policyService.listPolicies();
       res.json({
@@ -135,7 +145,7 @@ function createApp({ config, bucketService, policyService }) {
     }
   });
 
-  app.get("/admin/policies/resolve", async (req, res, next) => {
+  adminRouter.get("/policies/resolve", async (req, res, next) => {
     try {
       if (!req.query.route) {
         throw createBadRequestError('The "route" query parameter is required.');
@@ -156,7 +166,7 @@ function createApp({ config, bucketService, policyService }) {
     }
   });
 
-  app.put("/admin/policies", async (req, res, next) => {
+  adminRouter.put("/policies", async (req, res, next) => {
     try {
       const payload = getPolicyPayload(req.body || {});
       const policy = await policyService.upsertPolicy(payload);
@@ -170,7 +180,7 @@ function createApp({ config, bucketService, policyService }) {
     }
   });
 
-  app.delete("/admin/policies", async (req, res, next) => {
+  adminRouter.delete("/policies", async (req, res, next) => {
     try {
       const source = {
         ...req.query,
@@ -191,7 +201,7 @@ function createApp({ config, bucketService, policyService }) {
     }
   });
 
-  app.get("/admin/policies/examples", (req, res) => {
+  adminRouter.get("/policies/examples", (req, res) => {
     res.json({
       examples: [
         {
@@ -213,6 +223,8 @@ function createApp({ config, bucketService, policyService }) {
       ],
     });
   });
+
+  app.use("/admin", adminRouter);
 
   app.use((error, req, res, next) => {
     if (res.headersSent) {
