@@ -56,6 +56,8 @@ const config = {
   redisUrl: process.env.REDIS_URL || "redis://127.0.0.1:6379",
   rateLimit: {
     keyPrefix: process.env.RATE_LIMIT_KEY_PREFIX || "token_bucket",
+    policyCacheTtlMs: parsePositiveNumber("RATE_LIMIT_POLICY_CACHE_TTL_MS", 5000),
+    policyKeyPrefix: process.env.RATE_LIMIT_POLICY_KEY_PREFIX || "rate_limit_policy",
     capacity: parsePositiveNumber("RATE_LIMIT_CAPACITY", 10),
     refillRatePerSecond: parsePositiveNumber("RATE_LIMIT_REFILL_RATE_PER_SECOND", 5),
     requestCost: parsePositiveNumber("RATE_LIMIT_REQUEST_COST", 1),
