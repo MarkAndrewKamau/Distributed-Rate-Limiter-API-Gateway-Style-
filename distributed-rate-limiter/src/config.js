@@ -50,7 +50,24 @@ function parseBoolean(name, fallback) {
   throw new Error(`${name} must be a boolean. Received "${rawValue}".`);
 }
 
+function parseStringList(name, fallback = []) {
+  const rawValue = process.env[name];
+
+  if (rawValue === undefined || rawValue.trim() === "") {
+    return fallback;
+  }
+
+  return rawValue
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 const config = {
+  admin: {
+    apiKeys: parseStringList("ADMIN_API_KEYS"),
+    realm: process.env.ADMIN_AUTH_REALM || "rate-limiter-admin",
+  },
   nodeEnv: process.env.NODE_ENV || "development",
   port: parsePort("PORT", 3000),
   redisUrl: process.env.REDIS_URL || "redis://127.0.0.1:6379",
