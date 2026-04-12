@@ -36,6 +36,7 @@ services:
     ports:
       - "3000:3000"
     environment:
+      ADMIN_API_KEYS: local-dev-admin-key
       NODE_ENV: development
       REDIS_URL: redis://redis:6379
       RATE_LIMIT_CAPACITY: 10
