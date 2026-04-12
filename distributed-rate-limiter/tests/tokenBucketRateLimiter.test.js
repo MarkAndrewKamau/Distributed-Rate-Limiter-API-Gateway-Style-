@@ -55,36 +55,62 @@ describe("defaultKeyGenerator", () => {
 });
 
 describe("createTokenBucketRateLimiter", () => {
-  test("allows requests and writes rate-limit headers", async () => {
+  test("allows requests and writes rate-limit headers from the resolved policy", async () => {
     const bucketService = {
       consume: jest.fn().mockResolvedValue({
         allowed: true,
-        capacity: 10,
-        remaining: 9,
+        capacity: 25,
+        remaining: 23,
         resetAfterMs: 200,
         retryAfterMs: 0,
+      }),
+    };
+    const policyService = {
+      resolvePolicy: jest.fn().mockResolvedValue({
+        capacity: 25,
+        method: "GET",
+        refillRatePerSecond: 10,
+        requestCost: 2,
+        route: "_api_limited",
+        source: "redis",
+        subject: "client-123",
       }),
     };
 
     const middleware = createTokenBucketRateLimiter({
       bucketService,
       failOpen: false,
-      requestCost: 1,
+      policyService,
     });
 
-    const request = createMockRequest();
+    const request = createMockRequest({
+      headers: {
+        "x-api-key": "client-123",
+      },
+    });
     const response = createMockResponse();
     const next = jest.fn();
 
     await middleware(request, response, next);
 
+    expect(policyService.resolvePolicy).toHaveBeenCalledWith({
+      bucketKey: "client-123:GET:_api_limited",
+      method: "GET",
+      route: "_api_limited",
+      subject: "client-123",
+    });
     expect(bucketService.consume).toHaveBeenCalledWith({
-      key: "127_0_0_1:GET:_api_limited",
-      cost: 1,
+      capacity: 25,
+      cost: 2,
+      key: "client-123:GET:_api_limited",
+      refillRatePerSecond: 10,
     });
     expect(response.headers["X-RateLimit-Algorithm"]).toBe("token-bucket");
-    expect(response.headers["X-RateLimit-Limit"]).toBe("10");
-    expect(response.headers["X-RateLimit-Remaining"]).toBe("9");
+    expect(response.headers["X-RateLimit-Limit"]).toBe("25");
+    expect(response.headers["X-RateLimit-Remaining"]).toBe("23");
+    expect(response.headers["X-RateLimit-Policy-Scope"]).toBe("client-123:GET:_api_limited");
+    expect(response.headers["X-RateLimit-Policy-Source"]).toBe("redis");
+    expect(response.headers["X-RateLimit-Request-Cost"]).toBe("2");
     expect(response.headers["X-RateLimit-Reset-After"]).toBe("1");
     expect(next.mock.calls[0][0]).toBeUndefined();
   });
@@ -99,11 +125,22 @@ describe("createTokenBucketRateLimiter", () => {
         retryAfterMs: 600,
       }),
     };
+    const policyService = {
+      resolvePolicy: jest.fn().mockResolvedValue({
+        capacity: 10,
+        method: "GET",
+        refillRatePerSecond: 5,
+        requestCost: 1,
+        route: "_api_limited",
+        source: "default-config",
+        subject: "*",
+      }),
+    };
 
     const middleware = createTokenBucketRateLimiter({
       bucketService,
       failOpen: false,
-      requestCost: 1,
+      policyService,
     });
 
     const request = createMockRequest();
@@ -120,13 +157,16 @@ describe("createTokenBucketRateLimiter", () => {
 
   test("fails open when configured so traffic is not blocked by Redis errors", async () => {
     const bucketService = {
-      consume: jest.fn().mockRejectedValue(new Error("redis unavailable")),
+      consume: jest.fn(),
+    };
+    const policyService = {
+      resolvePolicy: jest.fn().mockRejectedValue(new Error("redis unavailable")),
     };
 
     const middleware = createTokenBucketRateLimiter({
       bucketService,
       failOpen: true,
-      requestCost: 1,
+      policyService,
     });
 
     const request = createMockRequest();
@@ -143,11 +183,22 @@ describe("createTokenBucketRateLimiter", () => {
     const bucketService = {
       consume: jest.fn().mockRejectedValue(new Error("redis unavailable")),
     };
+    const policyService = {
+      resolvePolicy: jest.fn().mockResolvedValue({
+        capacity: 10,
+        method: "GET",
+        refillRatePerSecond: 5,
+        requestCost: 1,
+        route: "_api_limited",
+        source: "default-config",
+        subject: "*",
+      }),
+    };
 
     const middleware = createTokenBucketRateLimiter({
       bucketService,
       failOpen: false,
-      requestCost: 1,
+      policyService,
     });
 
     const request = createMockRequest();

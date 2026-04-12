@@ -32,8 +32,11 @@ describe("TokenBucketService", () => {
     });
 
     const result = await service.consume({
+      capacity: 10,
+      cost: 2,
       key: "tenant-1:user-1:GET:_api_limited",
-      cost: 1,
+      refillRatePerSecond: 5,
+      ttlBufferMs: 1000,
     });
 
     expect(redis.defineCommand).toHaveBeenCalled();
@@ -43,7 +46,7 @@ describe("TokenBucketService", () => {
       "token_bucket:tenant-1:user-1:GET:_api_limited",
       "10",
       "5",
-      "1",
+      "2",
       "1000"
     );
     expect(result).toEqual({
@@ -87,5 +90,31 @@ describe("TokenBucketService", () => {
 
     await expect(service.ping()).resolves.toBe("PONG");
     expect(redis.ping).toHaveBeenCalled();
+  });
+
+  test("allows per-request policy overrides", async () => {
+    const redis = new FakeRedis(["1", "3", "4", "0", "250", "1712500000100", "3"]);
+    const service = new TokenBucketService({
+      redis,
+      capacity: 10,
+      refillRatePerSecond: 5,
+      ttlBufferMs: 1000,
+    });
+
+    await service.consume({
+      key: "tenant-1:user-1:POST:_api_uploads",
+      capacity: 4,
+      refillRatePerSecond: 2,
+      cost: 1,
+      ttlBufferMs: 500,
+    });
+
+    expect(redis[TOKEN_BUCKET_COMMAND]).toHaveBeenCalledWith(
+      "token_bucket:tenant-1:user-1:POST:_api_uploads",
+      "4",
+      "2",
+      "1",
+      "500"
+    );
   });
 });
